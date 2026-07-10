@@ -1,68 +1,66 @@
-from flask import Blueprint, request, jsonify
-from database.db import db, tasks_db, IndicatorDefinition
-from services.upload_service import process_upload_task
-import threading
-import uuid
+# routes/upload.py
+import io
+import pandas as pd
+from flask import send_file
+from database.db import IndicatorDefinition
 
-upload_bp = Blueprint('upload', __name__, url_prefix='/api/data')
-
-@upload_bp.route('/upload', methods=['POST'])
-def upload_excel():
-    # 1. 校验文件
-    if 'file' not in request.files:
-        return jsonify({"code": 400, "msg": "未上传文件"}), 400
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"code": 400, "msg": "文件名为空"}), 400
-    if not file.filename.endswith(('.xlsx', '.xls')):
-        return jsonify({"code": 400, "msg": "仅支持 .xlsx 或 .xls 格式"}), 400
-
-    # 2. 获取导入模式（前端传参 mode=append/overwrite）
-    import_mode = request.form.get('mode', 'append')
-    if import_mode not in ['append', 'overwrite']:
-        return jsonify({"code": 400, "msg": "mode参数仅支持 append 或 overwrite"}), 400
-
-    # 3. 预加载指标定义（映射到字典）
-    indicators = IndicatorDefinition.query.all()
-    indicator_map = {ind.indicator_name: ind for ind in indicators}
-    if not indicator_map:
-        return jsonify({"code": 500, "msg": "数据库未配置指标定义，请先初始化"}), 500
-
-    # 4. 创建任务
-    task_id = str(uuid.uuid4())
-    tasks_db[task_id] = {
-        "status": "pending",
-        "total": 0,
-        "current": 0,
-        "error": "",
-        "detail_errors": []
-    }
-
-    # 5. 读取文件字节并启动后台线程
-    file_bytes = file.read()
-    thread = threading.Thread(
-        target=process_upload_task,
-        args=(task_id, file_bytes, import_mode, indicator_map)
-    )
-    thread.daemon = True
-    thread.start()
-
-    return jsonify({"code": 200, "taskId": task_id, "msg": "导入任务已开始"})
-
-@upload_bp.route('/task/<taskId>', methods=['GET'])
-def get_task_progress(taskId):
-    task = tasks_db.get(taskId)
-    if not task:
-        return jsonify({"code": 404, "msg": "任务不存在"}), 404
+@upload_bp.route('/template', methods=['GET'])
+def download_template():
+    """
+    生成完全匹配《智联乡策》标准的多 Sheet Excel 模板
+    """
+    # 1. 查询所有指标，按一级分类（category_l1）分组
+    indicators = IndicatorDefinition.query.order_by(
+        IndicatorDefinition.category_l1,
+        IndicatorDefinition.indicator_id
+    ).all()
     
-    # 前端只需要这些字段
-    return jsonify({
-        "code": 200,
-        "data": {
-            "status": task["status"],
-            "total": task["total"],
-            "current": task["current"],
-            "error": task.get("error", ""),
-            "detail_errors": task.get("detail_errors", [])  # 逐行错误
-        }
-    })
+    # 分类字典
+    groups = {}
+    for ind in indicators:
+        cat = ind.category_l1 or '其他指标'
+        groups.setdefault(cat, []).append(ind)
+
+    # 2. 写入内存 Excel
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        
+        # ---------- Sheet 1: 村庄基本信息 ----------
+        basic_fields = [
+            '村庄名称', '所属省份', '所属地市', '所属区县', '所属乡镇',
+            '总人口', '户数'
+        ]
+        df_basic = pd.DataFrame({
+            '字段': basic_fields,
+            '填写内容': [''] * len(basic_fields)  # 留空供用户填写
+        })
+        df_basic.to_excel(writer, sheet_name='村庄基本信息', index=False)
+
+        # ---------- 后续 Sheet: 按分类生成指标表 ----------
+        for cat_name, ind_list in groups.items():
+            # Excel Sheet 名称不能超过 31 个字符，截断处理
+            sheet_name = cat_name[:31]
+            rows = []
+            for ind in ind_list:
+                rows.append([
+                    ind.indicator_id,
+                    ind.indicator_name,
+                    ind.category_l1 or '',
+                    ind.category_l2 or '',
+                    ind.indicator_desc or '',  # 对应模板里的“指标说明”
+                    ind.unit or '',
+                    ind.data_type or '数值',
+                    ''  # 最后一列：指标值（用户填写）
+                ])
+            # 定义列名（完全照搬你模板里的表头，再加一列“指标值”）
+            columns = ['indicator_id', '指标名称', '一级分类', '二级分类', '指标说明', '单位', '数据类型', '指标值']
+            df = pd.DataFrame(rows, columns=columns)
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+    output.seek(0)
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name='智联乡策_村庄数据填报模板.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
