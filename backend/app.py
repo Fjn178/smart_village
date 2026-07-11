@@ -1,14 +1,26 @@
-from flask import Flask, jsonify
+from flask import Flask
+from flask_jwt_extended import JWTManager
+from database.models import db
+from config import Config
 
-app = Flask(__name__)
+def create_app():
+    app = Flask(__name__)
+    app.config.from_object(Config)
 
-@app.route('/')
-def hello():
-    return jsonify({"code": 0, "message": "智联乡策后端已启动"})
+    db.init_app(app)
+    JWTManager(app)  # 初始化JWT
 
-@app.route('/api/health')
-def health():
-    return jsonify({"code": 0, "data": {"status": "ok"}})
+    # 注册蓝图
+    from routes.auth import auth_bp
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    from routes.village import village_bp
+    app.register_blueprint(village_bp, url_prefix='/api/villages')
+    
+
+    return app
 
 if __name__ == '__main__':
+    app = create_app()
+    with app.app_context():
+        db.create_all()  # 自动建表
     app.run(debug=True, host='0.0.0.0', port=5000)
