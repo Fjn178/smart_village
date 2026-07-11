@@ -13,6 +13,9 @@ def create_app():
     # 注册蓝图
     from routes.auth import auth_bp
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    from routes.village import village_bp
+    app.register_blueprint(village_bp, url_prefix='/api/villages')
+    
 
     return app
 

@@ -1,8 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import Login from '@/pages/Login.vue'
-
-// 临时定义 Home 页面（先简单写一个，回头再完善）
-const Home = { template: '<div><h1>首页（登录后才能看）</h1></div>' }
+import Login from '../pages/Login.vue'
+import Home from '../pages/Home.vue'      // ← 改成导入真实的 Home.vue
+import Village from '../pages/Village.vue'
 
 const routes = [
   {
@@ -14,7 +13,13 @@ const routes = [
   {
     path: '/',
     name: 'Home',
-    component: Home,
+    component: Home,      // ← 改成真实组件
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/villages',
+    name: 'Village',
+    component: Village,
     meta: { requiresAuth: true }
   }
 ]
@@ -24,7 +29,6 @@ const router = createRouter({
   routes
 })
 
-// 路由守卫
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('access_token')
   if (to.meta.requiresAuth && !token) {
