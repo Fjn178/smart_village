@@ -1,52 +1,61 @@
 # backend/database/repository/case_repo.py
-from app import db
-from app import CaseLibrary, CaseIndicator
+from backend.database import db
+from backend.database.models import CaseLibrary, CasePractice, CaseIndicator
 
 
 def get_all_cases():
-    """获取所有案例的基本信息"""
+    """获取所有案例的基本信息 + 做法详情 + 指标向量"""
     cases = CaseLibrary.query.all()
-    return [
-        {
-            "id": c.id,
-            "name": c.name,
-            "location": c.location,
-            "industry": c.industry,
-            "success_factors": c.success_factors
-        }
-        for c in cases
-    ]
-
-
-def get_case_indicators(case_id):
-    """获取某个案例的所有指标值"""
-    indicators = CaseIndicator.query.filter_by(case_id=case_id).all()
-    return {
-        "case_id": case_id,
-        "indicators": [
+    result = []
+    
+    for case in cases:
+        # 获取该案例的所有做法
+        practices = CasePractice.query.filter_by(case_id=case.id).all()
+        practices_list = [
             {
-                "indicator_id": ind.indicator_id,
-                "value": ind.value,
-                "normalized_value": ind.normalized_value
+                "module": p.module,
+                "sub_module": p.sub_module,
+                "practice": p.practice
             }
-            for ind in indicators
+            for p in practices
         ]
-    }
-
-
-def get_all_case_vectors():
-    """获取所有案例的指标向量（用于相似度计算）"""
-    all_cases = CaseLibrary.query.all()
-    result = {}
-    for case in all_cases:
+        
+        # 获取该案例的所有指标值
         indicators = CaseIndicator.query.filter_by(case_id=case.id).all()
-        vec = {}
+        indicator_vector = {}
         for ind in indicators:
             val = ind.normalized_value if ind.normalized_value is not None else ind.value
             if val is not None:
-                vec[ind.indicator_id] = val
-        result[case.id] = {
+                indicator_vector[ind.indicator_id] = val
+        
+        result.append({
+            "id": case.id,
             "name": case.name,
-            "vector": vec
-        }
+            "location": case.location,
+            "industry": case.industry,
+            "success_factors": case.success_factors,
+            "practices": practices_list,
+            "indicator_vector": indicator_vector
+        })
+    
     return result
+
+
+def get_case_by_id(case_id):
+    """根据 ID 获取单个案例的完整信息"""
+    case = CaseLibrary.query.get(case_id)
+    if not case:
+        return None
+    
+    practices = CasePractice.query.filter_by(case_id=case.id).all()
+    indicators = CaseIndicator.query.filter_by(case_id=case.id).all()
+    
+    return {
+        "id": case.id,
+        "name": case.name,
+        "location": case.location,
+        "industry": case.industry,
+        "success_factors": case.success_factors,
+        "practices": [{"module": p.module, "sub_module": p.sub_module, "practice": p.practice} for p in practices],
+        "indicator_vector": {ind.indicator_id: ind.value for ind in indicators}
+    }
