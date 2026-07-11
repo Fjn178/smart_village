@@ -83,3 +83,4 @@ def verify_password(password: str, stored: str) -> bool:
         return False
     dk = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, iterations)
     return hmac.compare_digest(dk.hex(), hash_hex)
+ 

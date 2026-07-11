@@ -12,3 +12,4 @@ def error(message="error", code=1, data=None):
 	payload = {"code": code, "message": message, "data": data}
 	return jsonify(payload)
  
+ 

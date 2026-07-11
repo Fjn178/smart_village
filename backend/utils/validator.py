@@ -99,3 +99,4 @@ def validate_row_against_schema(row: Dict[str, Any], schema: Dict[str, Dict[str,
 
 	return errors
 
+ 
