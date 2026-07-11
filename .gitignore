@@ -1,0 +1,15 @@
+# Node
+node_modules/
+dist/
+.npm/
+
+# Python
+__pycache__/
+*.pyc
+.env
+*.db
+*.log
+
+# IDE
+.vscode/
+.idea/
