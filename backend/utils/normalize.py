@@ -24,4 +24,3 @@ def z_score(values: Iterable[float]) -> List[float]:
 		return [0.0 for _ in vals]
 	return [(v - mean) / std for v in vals]
 
- 

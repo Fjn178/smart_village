@@ -63,4 +63,3 @@ def parse_excel(path: str, schema: Optional[Dict[str, Dict[str, Any]]] = None, s
         raise ValidationError(errors)
 
     return valid_rows
-  

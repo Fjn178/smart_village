@@ -98,4 +98,4 @@ def validate_row_against_schema(row: Dict[str, Any], schema: Dict[str, Dict[str,
 				errors.append({"field": field, "code": "format", "message": "invalid email format"})
 
 	return errors
- 
+
