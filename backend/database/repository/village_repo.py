@@ -1,54 +1,109 @@
-from database.models import db
-from database.models import Village  # 注意：这个 Village 模型我们还没创建，后面会补
+"""
+村庄数据仓库 - 负责村庄基础数据的查询
+"""
+from typing import Optional, List, Dict, Any
+from backend.database.db import get_db_connection
 
 
-class VillageRepository:
-    """村庄数据访问层"""
+def get_village_name(village_id: int) -> Optional[str]:
+    """根据ID获取村庄名称"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.execute(
+                "SELECT name FROM village WHERE id = ?",
+                (village_id,)
+            )
+            row = cursor.fetchone()
+            return row["name"] if row else None
+    except Exception as e:
+        print(f"[village_repo] 获取村庄名称失败: {e}")
+        return None
 
-    @staticmethod
-    def get_all(filters=None):
-        """
-        获取所有村庄
-        filters: 可选的过滤条件，如 {'town_id': 1, 'village_id': 2}
-        """
-        query = Village.query
-        if filters:
-            if filters.get('town_id'):
-                query = query.filter(Village.town_id == filters['town_id'])
-            if filters.get('village_id'):
-                query = query.filter(Village.id == filters['village_id'])
-        return query.all()
 
-    @staticmethod
-    def get_by_id(village_id):
-        """根据ID获取单个村庄"""
-        return Village.query.get(village_id)
+def get_all_villages() -> List[Dict[str, Any]]:
+    """获取所有村庄基本信息"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.execute(
+                "SELECT id, name, province, city, county, town FROM village"
+            )
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+    except Exception as e:
+        print(f"[village_repo] 获取村庄列表失败: {e}")
+        return []
 
-    @staticmethod
-    def create(data):
-        """新增村庄"""
-        village = Village(**data)
-        db.session.add(village)
-        db.session.commit()
-        return village
 
-    @staticmethod
-    def update(village_id, data):
-        """更新村庄"""
-        village = Village.query.get(village_id)
-        if not village:
-            return None
-        for key, value in data.items():
-            setattr(village, key, value)
-        db.session.commit()
-        return village
+def get_village_basic_info(village_id: int) -> Optional[Dict[str, Any]]:
+    """获取单个村庄基本信息"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.execute(
+                "SELECT id, name, province, city, county, town FROM village WHERE id = ?",
+                (village_id,)
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return dict(row)
+    except Exception as e:
+        print(f"[village_repo] 获取村庄信息失败: {e}")
+        return None
 
-    @staticmethod
-    def delete(village_id):
-        """删除村庄"""
-        village = Village.query.get(village_id)
-        if not village:
-            return False
-        db.session.delete(village)
-        db.session.commit()
-        return True
+
+def get_village_indicator_value(village_id: int, indicator_id: int) -> Optional[float]:
+    """获取某个村庄的某个指标值"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.execute(
+                "SELECT value FROM village_indicators WHERE village_id = ? AND indicator_id = ?",
+                (village_id, indicator_id)
+            )
+            row = cursor.fetchone()
+            return row["value"] if row else None
+    except Exception as e:
+        print(f"[village_repo] 获取指标值失败: {e}")
+        return None
+
+
+def get_village_all_indicators(village_id: int) -> Dict[int, float]:
+    """获取某个村庄的所有指标值，返回 {indicator_id: value}"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.execute(
+                "SELECT indicator_id, value FROM village_indicators WHERE village_id = ?",
+                (village_id,)
+            )
+            rows = cursor.fetchall()
+            return {row["indicator_id"]: row["value"] for row in rows}
+    except Exception as e:
+        print(f"[village_repo] 获取所有指标失败: {e}")
+        return {}
+
+
+def get_all_village_indicator_values() -> Dict[int, Dict[int, float]]:
+    """
+    获取所有村庄的所有指标值
+    返回: {village_id: {indicator_id: value}}
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.execute(
+                "SELECT village_id, indicator_id, value FROM village_indicators"
+            )
+            rows = cursor.fetchall()
+            
+            result = {}
+            for row in rows:
+                vid = row["village_id"]
+                iid = row["indicator_id"]
+                value = row["value"]
+                
+                if vid not in result:
+                    result[vid] = {}
+                result[vid][iid] = value
+            
+            return result
+    except Exception as e:
+        print(f"[village_repo] 获取所有村庄指标失败: {e}")
+        return {}
