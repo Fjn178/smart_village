@@ -1,12 +1,12 @@
 from flask import Flask, jsonify
-
 from backend.routes.recommend import recommend_bp
+from routes.cases import cases_bp
 
 app = Flask(__name__)
 
 # 注册蓝图
 app.register_blueprint(recommend_bp)
-
+app.register_blueprint(cases_bp)
 @app.route('/')
 def hello():
     return jsonify({"code": 0, "message": "智联乡策后端已启动"})
